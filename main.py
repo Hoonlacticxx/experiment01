@@ -286,7 +286,7 @@ def detener_todo():
 
 
 # ==========================================
-# COMBINACIÓN GLOBAL C + M
+# COMBINACIÓN GLOBAL C + P
 # ==========================================
 
 keyboard.add_hotkey(
