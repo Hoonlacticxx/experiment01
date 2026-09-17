@@ -1,8 +1,11 @@
+
 import tkinter as tk
 from PIL import Image, ImageTk
 import vlc
 import os
 import sys
+import random
+import keyboard
 
 
 # ==========================================
@@ -12,14 +15,30 @@ import sys
 IMAGE_FILE = "imagen.jpg"
 AUDIO_FILE = "audio.mp3"
 
-NUM_VENTANAS = 10
+# Cada cuánto aparece una ventana
+INTERVALO_VENTANA = 500
+
+ANCHO = 450
+ALTO = 300
 
 
 # ==========================================
-# RUTA DE ARCHIVOS
+# VARIABLES
 # ==========================================
 
-def obtener_ruta(archivo):
+activo = True
+ventanas = []
+
+reproductor = None
+root = None
+imagen_original = None
+
+
+# ==========================================
+# RUTA
+# ==========================================
+
+def ruta_archivo(nombre):
 
     if getattr(sys, "frozen", False):
         carpeta = sys._MEIPASS
@@ -30,7 +49,7 @@ def obtener_ruta(archivo):
 
     return os.path.join(
         carpeta,
-        archivo
+        nombre
     )
 
 
@@ -38,29 +57,51 @@ def obtener_ruta(archivo):
 # AUDIO
 # ==========================================
 
-reproductor = None
-
-
-def reproducir_audio():
+def iniciar_audio():
 
     global reproductor
 
-    ruta_audio = obtener_ruta(AUDIO_FILE)
+    ruta = ruta_archivo(AUDIO_FILE)
 
-    if not os.path.exists(ruta_audio):
-
-        print("No se encontró el audio:")
-        print(ruta_audio)
-
+    if not os.path.exists(ruta):
+        print("No existe:", ruta)
         return
 
-    reproductor = vlc.MediaPlayer(
-        ruta_audio
-    )
+    reproductor = vlc.MediaPlayer(ruta)
 
     reproductor.audio_set_volume(100)
 
     reproductor.play()
+
+    revisar_audio()
+
+
+def revisar_audio():
+
+    if not activo:
+        return
+
+    if reproductor is not None:
+
+        estado = reproductor.get_state()
+
+        if estado == vlc.State.Ended:
+
+            reproductor.stop()
+
+            reproductor.set_media(
+                vlc.Media(
+                    ruta_archivo(AUDIO_FILE)
+                )
+            )
+
+            reproductor.play()
+
+    if activo:
+        root.after(
+            300,
+            revisar_audio
+        )
 
 
 def detener_audio():
@@ -69,157 +110,259 @@ def detener_audio():
 
     if reproductor is not None:
 
-        reproductor.stop()
+        try:
+            reproductor.stop()
+            reproductor.release()
+        except:
+            pass
+
+        reproductor = None
+
+
+# ==========================================
+# POSICIÓN ALEATORIA
+# ==========================================
+
+def posicion_random():
+
+    pantalla_ancho = root.winfo_screenwidth()
+    pantalla_alto = root.winfo_screenheight()
+
+    max_x = pantalla_ancho - ANCHO
+    max_y = pantalla_alto - ALTO
+
+    x = random.randint(
+        0,
+        max(0, max_x)
+    )
+
+    y = random.randint(
+        0,
+        max(0, max_y)
+    )
+
+    return x, y
+
+
+# ==========================================
+# CREAR VENTANA
+# ==========================================
+
+def crear_ventana():
+
+    if not activo:
+        return
+
+    # Crear ventana
+    ventana = tk.Toplevel(root)
+
+    # ======================================
+    # QUITAR COMPLETAMENTE LA BARRA
+    # ======================================
+
+    ventana.overrideredirect(True)
+
+    # Mantener encima
+    ventana.attributes(
+        "-topmost",
+        True
+    )
+
+    # ======================================
+    # POSICIÓN ALEATORIA
+    # ======================================
+
+    x, y = posicion_random()
+
+    ventana.geometry(
+        "{}x{}+{}+{}".format(
+            ANCHO,
+            ALTO,
+            x,
+            y
+        )
+    )
+
+    # Forzar a Windows a aplicar
+    # inmediatamente la posición
+    ventana.update_idletasks()
+
+    # ======================================
+    # CANVAS
+    # ======================================
+
+    canvas = tk.Canvas(
+        ventana,
+        highlightthickness=0,
+        bd=0
+    )
+
+    canvas.pack(
+        fill="both",
+        expand=True
+    )
+
+    # ======================================
+    # IMAGEN
+    # ======================================
+
+    imagen = imagen_original.copy()
+
+    imagen.thumbnail(
+        (
+            ANCHO,
+            ALTO
+        ),
+        Image.Resampling.LANCZOS
+    )
+
+    imagen_tk = ImageTk.PhotoImage(
+        imagen
+    )
+
+    canvas.create_image(
+        ANCHO // 2,
+        ALTO // 2,
+        image=imagen_tk,
+        anchor="center"
+    )
+
+    # Guardar referencia
+    ventana.imagen = imagen_tk
+
+    # Guardar ventana
+    ventanas.append(
+        ventana
+    )
+
+    # ======================================
+    # CREAR OTRA VENTANA
+    # ======================================
+
+    if activo:
+
+        root.after(
+            INTERVALO_VENTANA,
+            crear_ventana
+        )
+
+
+# ==========================================
+# DETENER TODO
+# ==========================================
+
+def detener_todo():
+
+    global activo
+
+    if not activo:
+        return
+
+    print()
+    print("C + M DETECTADO")
+    print("DETENIENDO TODO...")
+
+    activo = False
+
+    # Detener audio
+    detener_audio()
+
+    # Cancelar futuras ventanas
+    # y cerrar todas las existentes
+    for ventana in ventanas:
+
+        try:
+            ventana.destroy()
+        except:
+            pass
+
+    ventanas.clear()
+
+    # Cerrar programa
+    try:
+        root.destroy()
+    except:
+        pass
+
+
+# ==========================================
+# COMBINACIÓN GLOBAL C + M
+# ==========================================
+
+keyboard.add_hotkey(
+    "c+m",
+    detener_todo
+)
 
 
 # ==========================================
 # CARGAR IMAGEN
 # ==========================================
 
-def cargar_imagen():
+try:
 
-    ruta = obtener_ruta(IMAGE_FILE)
-
-    return Image.open(ruta)
-
-
-# ==========================================
-# PROGRAMA
-# ==========================================
-
-def iniciar_broma():
-
-    try:
-
-        imagen_original = cargar_imagen()
-
-    except Exception as error:
-
-        print("No se pudo cargar la imagen:")
-        print(error)
-
-        return
-
-
-    ventana_principal = tk.Tk()
-
-    ventana_principal.withdraw()
-
-    ventanas = []
-
-
-    # ======================================
-    # CERRAR TODO CON ESC
-    # ======================================
-
-    def cerrar_todo(event=None):
-
-        detener_audio()
-
-        for ventana in ventanas:
-
-            try:
-
-                ventana.destroy()
-
-            except tk.TclError:
-
-                pass
-
-        ventana_principal.destroy()
-
-
-    ventana_principal.bind_all(
-        "<Escape>",
-        cerrar_todo
+    imagen_original = Image.open(
+        ruta_archivo(
+            IMAGE_FILE
+        )
     )
 
+except Exception as error:
 
-    # ======================================
-    # CREAR VENTANAS
-    # ======================================
+    print(
+        "Error cargando imagen:"
+    )
 
-    for i in range(NUM_VENTANAS):
+    print(error)
 
-        ventana = tk.Toplevel(
-            ventana_principal
+    try:
+        keyboard.remove_hotkey(
+            "c+m"
         )
+    except:
+        pass
 
-        ventana.title("ACTIVA CAM")
-
-        ventana.geometry("500x350")
-
-
-        canvas = tk.Canvas(
-            ventana,
-            highlightthickness=0
-        )
-
-        canvas.pack(
-            fill=tk.BOTH,
-            expand=True
-        )
-
-
-        def redimensionar(
-            event,
-            canvas=canvas
-        ):
-
-            if event.width <= 10 or event.height <= 10:
-
-                return
-
-
-            imagen = imagen_original.copy()
-
-            imagen = imagen.resize(
-                (
-                    event.width,
-                    event.height
-                ),
-                Image.Resampling.LANCZOS
-            )
-
-
-            imagen_tk = ImageTk.PhotoImage(
-                imagen
-            )
-
-            canvas.image = imagen_tk
-
-            canvas.delete("all")
-
-            canvas.create_image(
-                0,
-                0,
-                anchor=tk.NW,
-                image=imagen_tk
-            )
-
-
-        canvas.bind(
-            "<Configure>",
-            redimensionar
-        )
-
-        ventanas.append(ventana)
-
-
-    # ======================================
-    # REPRODUCIR AUDIO
-    # ======================================
-
-    reproducir_audio()
-
-
-    ventana_principal.mainloop()
+    sys.exit()
 
 
 # ==========================================
-# EJECUTAR
+# ROOT
 # ==========================================
 
-if __name__ == "__main__":
+root = tk.Tk()
 
-    iniciar_broma()
+root.withdraw()
+
+
+# ==========================================
+# INICIAR
+# ==========================================
+
+iniciar_audio()
+
+crear_ventana()
+
+
+# ==========================================
+# LOOP
+# ==========================================
+
+root.mainloop()
+
+
+# ==========================================
+# LIMPIEZA
+# ==========================================
+
+try:
+
+    keyboard.remove_hotkey(
+        "c+m"
+    )
+
+except:
+    pass
+
+detener_audio()
+
+print("Programa terminado.")
