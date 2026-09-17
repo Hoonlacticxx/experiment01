@@ -16,7 +16,7 @@ IMAGE_FILE = "imagen.jpg"
 AUDIO_FILE = "audio.mp3"
 
 # Cada cuánto aparece una ventana
-INTERVALO_VENTANA = 500
+INTERVALO_VENTANA = 300
 
 ANCHO = 450
 ALTO = 300
