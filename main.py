@@ -259,7 +259,7 @@ def detener_todo():
         return
 
     print()
-    print("C + M DETECTADO")
+    print("C + P DETECTADO")
     print("DETENIENDO TODO...")
 
     activo = False
@@ -290,7 +290,7 @@ def detener_todo():
 # ==========================================
 
 keyboard.add_hotkey(
-    "c+m",
+    "c+p",
     detener_todo
 )
 
@@ -317,7 +317,7 @@ except Exception as error:
 
     try:
         keyboard.remove_hotkey(
-            "c+m"
+            "c+p"
         )
     except:
         pass
@@ -357,7 +357,7 @@ root.mainloop()
 try:
 
     keyboard.remove_hotkey(
-        "c+m"
+        "c+p"
     )
 
 except:
