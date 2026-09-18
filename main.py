@@ -6,271 +6,115 @@ import os
 import sys
 import random
 import keyboard
+import threading
+import time
 
-
-# ==========================================
+# =========================================================
 # CONFIGURACIÓN
-# ==========================================
+# =========================================================
 
 IMAGE_FILE = "imagen.jpg"
 AUDIO_FILE = "audio.mp3"
 
-# Cada cuánto aparece una ventana
-INTERVALO_VENTANA = 300
-
 ANCHO = 450
 ALTO = 300
 
+# Tiempo entre nuevas ventanas
+INTERVALO_VENTANA = 300
 
-# ==========================================
-# VARIABLES
-# ==========================================
+# Volumen que tendrá Windows mientras el programa esté activo
+VOLUMEN = 0.50
 
 activo = True
 ventanas = []
 
-reproductor = None
-root = None
-imagen_original = None
-
-
-# ==========================================
-# RUTA
-# ==========================================
+# =========================================================
+# RUTAS PARA PYTHON Y PARA EL EXE
+# =========================================================
 
 def ruta_archivo(nombre):
-
     if getattr(sys, "frozen", False):
-        carpeta = sys._MEIPASS
+        base = sys._MEIPASS
     else:
-        carpeta = os.path.dirname(
-            os.path.abspath(__file__)
-        )
+        base = os.path.dirname(os.path.abspath(__file__))
 
-    return os.path.join(
-        carpeta,
-        nombre
-    )
+    return os.path.join(base, nombre)
 
 
-# ==========================================
-# AUDIO
-# ==========================================
+# =========================================================
+# CONTROL DE VOLUMEN
+# =========================================================
 
-def iniciar_audio():
+def configurar_volumen():
+    try:
+        from pycaw.pycaw import AudioUtilities
 
-    global reproductor
+        dispositivos = AudioUtilities.GetSpeakers()
+        volumen = dispositivos.EndpointVolume
 
-    ruta = ruta_archivo(AUDIO_FILE)
+        # Desmutear
+        volumen.SetMute(0, None)
 
-    if not os.path.exists(ruta):
-        print("No existe:", ruta)
-        return
+        # Poner volumen al 50%
+        volumen.SetMasterVolumeLevelScalar(VOLUMEN, None)
 
-    reproductor = vlc.MediaPlayer(ruta)
+        print("Volumen establecido al 50%")
 
-    reproductor.audio_set_volume(100)
-
-    reproductor.play()
-
-    revisar_audio()
-
-
-def revisar_audio():
-
-    if not activo:
-        return
-
-    if reproductor is not None:
-
-        estado = reproductor.get_state()
-
-        if estado == vlc.State.Ended:
-
-            reproductor.stop()
-
-            reproductor.set_media(
-                vlc.Media(
-                    ruta_archivo(AUDIO_FILE)
-                )
-            )
-
-            reproductor.play()
-
-    if activo:
-        root.after(
-            300,
-            revisar_audio
-        )
+    except Exception as e:
+        print("No se pudo controlar el volumen:", e)
 
 
-def detener_audio():
+def vigilar_volumen():
+    """
+    Mientras el programa esté activo:
+    - Mantiene el volumen en 50%.
+    - Si alguien mutea la PC, la vuelve a desmutear.
+    """
 
-    global reproductor
+    try:
+        from pycaw.pycaw import AudioUtilities
 
-    if reproductor is not None:
+        dispositivos = AudioUtilities.GetSpeakers()
+        volumen = dispositivos.EndpointVolume
 
-        try:
-            reproductor.stop()
-            reproductor.release()
-        except:
-            pass
+        while activo:
 
-        reproductor = None
+            # Si está muteado, quitar mute
+            if volumen.GetMute():
+                volumen.SetMute(0, None)
 
+            # Mantener volumen en 50%
+            volumen.SetMasterVolumeLevelScalar(VOLUMEN, None)
 
-# ==========================================
-# POSICIÓN ALEATORIA
-# ==========================================
+            time.sleep(0.2)
 
-def posicion_random():
-
-    pantalla_ancho = root.winfo_screenwidth()
-    pantalla_alto = root.winfo_screenheight()
-
-    max_x = pantalla_ancho - ANCHO
-    max_y = pantalla_alto - ALTO
-
-    x = random.randint(
-        0,
-        max(0, max_x)
-    )
-
-    y = random.randint(
-        0,
-        max(0, max_y)
-    )
-
-    return x, y
+    except Exception as e:
+        print("Error vigilando volumen:", e)
 
 
-# ==========================================
-# CREAR VENTANA
-# ==========================================
-
-def crear_ventana():
-
-    if not activo:
-        return
-
-    # Crear ventana
-    ventana = tk.Toplevel(root)
-
-    # ======================================
-    # QUITAR COMPLETAMENTE LA BARRA
-    # ======================================
-
-    ventana.overrideredirect(True)
-
-    # Mantener encima
-    ventana.attributes(
-        "-topmost",
-        True
-    )
-
-    # ======================================
-    # POSICIÓN ALEATORIA
-    # ======================================
-
-    x, y = posicion_random()
-
-    ventana.geometry(
-        "{}x{}+{}+{}".format(
-            ANCHO,
-            ALTO,
-            x,
-            y
-        )
-    )
-
-    # Forzar a Windows a aplicar
-    # inmediatamente la posición
-    ventana.update_idletasks()
-
-    # ======================================
-    # CANVAS
-    # ======================================
-
-    canvas = tk.Canvas(
-        ventana,
-        highlightthickness=0,
-        bd=0
-    )
-
-    canvas.pack(
-        fill="both",
-        expand=True
-    )
-
-    # ======================================
-    # IMAGEN
-    # ======================================
-
-    imagen = imagen_original.copy()
-
-    imagen.thumbnail(
-        (
-            ANCHO,
-            ALTO
-        ),
-        Image.Resampling.LANCZOS
-    )
-
-    imagen_tk = ImageTk.PhotoImage(
-        imagen
-    )
-
-    canvas.create_image(
-        ANCHO // 2,
-        ALTO // 2,
-        image=imagen_tk,
-        anchor="center"
-    )
-
-    # Guardar referencia
-    ventana.imagen = imagen_tk
-
-    # Guardar ventana
-    ventanas.append(
-        ventana
-    )
-
-    # ======================================
-    # CREAR OTRA VENTANA
-    # ======================================
-
-    if activo:
-
-        root.after(
-            INTERVALO_VENTANA,
-            crear_ventana
-        )
-
-
-# ==========================================
-# DETENER TODO
-# ==========================================
+# =========================================================
+# CERRAR TODO
+# =========================================================
 
 def detener_todo():
-
     global activo
 
     if not activo:
         return
 
-    print()
-    print("C + P DETECTADO")
-    print("DETENIENDO TODO...")
+    print("C + M DETECTADO")
+    print("Deteniendo programa...")
 
     activo = False
 
     # Detener audio
-    detener_audio()
+    try:
+        player.stop()
+    except:
+        pass
 
-    # Cancelar futuras ventanas
-    # y cerrar todas las existentes
-    for ventana in ventanas:
-
+    # Cerrar todas las ventanas
+    for ventana in ventanas[:]:
         try:
             ventana.destroy()
         except:
@@ -278,91 +122,235 @@ def detener_todo():
 
     ventanas.clear()
 
-    # Cerrar programa
+    # Quitar hotkey
     try:
-        root.destroy()
+        keyboard.remove_hotkey("c+m")
     except:
         pass
 
+    print("Programa detenido.")
 
-# ==========================================
-# COMBINACIÓN GLOBAL C + P
-# ==========================================
 
-keyboard.add_hotkey(
-    "c+p",
-    detener_todo
+# =========================================================
+# CREAR VENTANA
+# =========================================================
+
+def crear_ventana():
+
+    if not activo:
+        return
+
+    try:
+        ventana = tk.Toplevel(root)
+
+        ventana.overrideredirect(True)
+        ventana.attributes("-topmost", True)
+
+        # -------------------------------------------------
+        # TAMAÑO DE LA PANTALLA
+        # -------------------------------------------------
+
+        pantalla_ancho = ventana.winfo_screenwidth()
+        pantalla_alto = ventana.winfo_screenheight()
+
+        # -------------------------------------------------
+        # POSICIÓN ALEATORIA
+        # -------------------------------------------------
+
+        x = random.randint(
+            0,
+            max(0, pantalla_ancho - ANCHO)
+        )
+
+        y = random.randint(
+            0,
+            max(0, pantalla_alto - ALTO)
+        )
+
+        ventana.geometry(
+            f"{ANCHO}x{ALTO}+{x}+{y}"
+        )
+
+        # -------------------------------------------------
+        # IMAGEN
+        # -------------------------------------------------
+
+        ruta_imagen = ruta_archivo(IMAGE_FILE)
+
+        imagen = Image.open(ruta_imagen)
+        imagen = imagen.resize(
+            (ANCHO, ALTO)
+        )
+
+        foto = ImageTk.PhotoImage(imagen)
+
+        etiqueta = tk.Label(
+            ventana,
+            image=foto,
+            borderwidth=0
+        )
+
+        etiqueta.image = foto
+        etiqueta.pack(
+            fill="both",
+            expand=True
+        )
+
+        # Guardar referencia
+        ventanas.append(ventana)
+
+        # -------------------------------------------------
+        # SI LA VENTANA SE CIERRA MANUALMENTE
+        # -------------------------------------------------
+
+        def cerrar():
+            try:
+                if ventana in ventanas:
+                    ventanas.remove(ventana)
+
+                ventana.destroy()
+
+            except:
+                pass
+
+        ventana.protocol(
+            "WM_DELETE_WINDOW",
+            cerrar
+        )
+
+    except Exception as e:
+        print("Error creando ventana:", e)
+
+
+# =========================================================
+# CREAR VENTANAS CONTINUAMENTE
+# =========================================================
+
+def generar_ventanas():
+
+    if not activo:
+        return
+
+    crear_ventana()
+
+    root.after(
+        INTERVALO_VENTANA,
+        generar_ventanas
+    )
+
+
+# =========================================================
+# AUDIO
+# =========================================================
+
+ruta_audio = ruta_archivo(AUDIO_FILE)
+
+instancia_vlc = vlc.Instance()
+
+player = instancia_vlc.media_player_new()
+
+media = instancia_vlc.media_new(
+    ruta_audio
 )
 
+player.set_media(media)
 
-# ==========================================
-# CARGAR IMAGEN
-# ==========================================
 
-try:
-
-    imagen_original = Image.open(
-        ruta_archivo(
-            IMAGE_FILE
-        )
-    )
-
-except Exception as error:
-
-    print(
-        "Error cargando imagen:"
-    )
-
-    print(error)
+def iniciar_audio():
 
     try:
-        keyboard.remove_hotkey(
-            "c+p"
-        )
-    except:
-        pass
+        player.play()
 
-    sys.exit()
+        # Esperar a que VLC inicialice
+        time.sleep(1)
+
+        # Repetir indefinidamente
+        while activo:
+
+            estado = player.get_state()
+
+            if estado == vlc.State.Ended:
+                player.stop()
+                player.play()
+
+            time.sleep(0.5)
+
+    except Exception as e:
+        print("Error con el audio:", e)
 
 
-# ==========================================
-# ROOT
-# ==========================================
+# =========================================================
+# VENTANA PRINCIPAL
+# =========================================================
 
 root = tk.Tk()
 
 root.withdraw()
 
+# =========================================================
+# CONFIGURAR VOLUMEN
+# =========================================================
 
-# ==========================================
-# INICIAR
-# ==========================================
+configurar_volumen()
 
-iniciar_audio()
+# =========================================================
+# VIGILAR VOLUMEN EN SEGUNDO PLANO
+# =========================================================
 
-crear_ventana()
+hilo_volumen = threading.Thread(
+    target=vigilar_volumen,
+    daemon=True
+)
 
+hilo_volumen.start()
 
-# ==========================================
-# LOOP
-# ==========================================
+# =========================================================
+# HOTKEY GLOBAL
+# =========================================================
 
-root.mainloop()
+keyboard.add_hotkey(
+    "c+m",
+    detener_todo
+)
 
+# =========================================================
+# INICIAR AUDIO
+# =========================================================
 
-# ==========================================
-# LIMPIEZA
-# ==========================================
+hilo_audio = threading.Thread(
+    target=iniciar_audio,
+    daemon=True
+)
+
+hilo_audio.start()
+
+# =========================================================
+# EMPEZAR A GENERAR VENTANAS
+# =========================================================
+
+root.after(
+    100,
+    generar_ventanas
+)
+
+# =========================================================
+# EJECUTAR
+# =========================================================
 
 try:
+    root.mainloop()
 
-    keyboard.remove_hotkey(
-        "c+p"
-    )
+finally:
 
-except:
-    pass
+    activo = False
 
-detener_audio()
+    try:
+        player.stop()
+    except:
+        pass
 
-print("Programa terminado.")
+    try:
+        keyboard.remove_hotkey("c+m")
+    except:
+        pass
+
