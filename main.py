@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from PIL import Image, ImageTk
 import vlc
@@ -19,26 +18,44 @@ AUDIO_FILE = "audio.mp3"
 ANCHO = 450
 ALTO = 300
 
-# Tiempo entre nuevas ventanas
+# Tiempo entre nuevas ventanas (milisegundos)
 INTERVALO_VENTANA = 300
 
-# Volumen que tendrá Windows mientras el programa esté activo
-VOLUMEN = 0.50
+# Volumen de Windows mientras el programa esté activo
+# 1.0 = 100%
+# 0.5 = 50%
+VOLUMEN = 1.0
 
 activo = True
 ventanas = []
+
 
 # =========================================================
 # RUTAS PARA PYTHON Y PARA EL EXE
 # =========================================================
 
 def ruta_archivo(nombre):
+
     if getattr(sys, "frozen", False):
         base = sys._MEIPASS
     else:
-        base = os.path.dirname(os.path.abspath(__file__))
+        base = os.path.dirname(
+            os.path.abspath(__file__)
+        )
 
     return os.path.join(base, nombre)
+
+
+# =========================================================
+# BLOQUEAR CIERRES
+# =========================================================
+
+def bloquear_cierre():
+    """
+    No permite cerrar el programa mediante
+    métodos normales de Windows.
+    """
+    pass
 
 
 # =========================================================
@@ -46,7 +63,9 @@ def ruta_archivo(nombre):
 # =========================================================
 
 def configurar_volumen():
+
     try:
+
         from pycaw.pycaw import AudioUtilities
 
         dispositivos = AudioUtilities.GetSpeakers()
@@ -55,23 +74,35 @@ def configurar_volumen():
         # Desmutear
         volumen.SetMute(0, None)
 
-        # Poner volumen al 50%
-        volumen.SetMasterVolumeLevelScalar(VOLUMEN, None)
+        # Establecer volumen
+        volumen.SetMasterVolumeLevelScalar(
+            VOLUMEN,
+            None
+        )
 
-        print("Volumen establecido al 50%")
+        print(
+            f"Volumen establecido al {int(VOLUMEN * 100)}%"
+        )
 
     except Exception as e:
-        print("No se pudo controlar el volumen:", e)
+
+        print(
+            "No se pudo controlar el volumen:",
+            e
+        )
 
 
 def vigilar_volumen():
+
     """
     Mientras el programa esté activo:
-    - Mantiene el volumen en 50%.
-    - Si alguien mutea la PC, la vuelve a desmutear.
+
+    - Mantiene el volumen configurado.
+    - Si alguien mutea la PC, vuelve a quitar el mute.
     """
 
     try:
+
         from pycaw.pycaw import AudioUtilities
 
         dispositivos = AudioUtilities.GetSpeakers()
@@ -79,17 +110,24 @@ def vigilar_volumen():
 
         while activo:
 
-            # Si está muteado, quitar mute
+            # Quitar mute
             if volumen.GetMute():
                 volumen.SetMute(0, None)
 
-            # Mantener volumen en 50%
-            volumen.SetMasterVolumeLevelScalar(VOLUMEN, None)
+            # Mantener volumen
+            volumen.SetMasterVolumeLevelScalar(
+                VOLUMEN,
+                None
+            )
 
             time.sleep(0.2)
 
     except Exception as e:
-        print("Error vigilando volumen:", e)
+
+        print(
+            "Error vigilando volumen:",
+            e
+        )
 
 
 # =========================================================
@@ -97,6 +135,7 @@ def vigilar_volumen():
 # =========================================================
 
 def detener_todo():
+
     global activo
 
     if not activo:
@@ -107,24 +146,49 @@ def detener_todo():
 
     activo = False
 
-    # Detener audio
+    # -----------------------------------------------------
+    # DETENER AUDIO
+    # -----------------------------------------------------
+
     try:
         player.stop()
+
     except:
         pass
 
-    # Cerrar todas las ventanas
+    # -----------------------------------------------------
+    # CERRAR TODAS LAS VENTANAS
+    # -----------------------------------------------------
+
     for ventana in ventanas[:]:
+
         try:
             ventana.destroy()
+
         except:
             pass
 
     ventanas.clear()
 
-    # Quitar hotkey
+    # -----------------------------------------------------
+    # QUITAR HOTKEYS
+    # -----------------------------------------------------
+
     try:
         keyboard.remove_hotkey("c+m")
+
+    except:
+        pass
+
+    try:
+        keyboard.remove_hotkey("alt+f4")
+
+    except:
+        pass
+
+    try:
+        keyboard.remove_hotkey("esc")
+
     except:
         pass
 
@@ -141,10 +205,20 @@ def crear_ventana():
         return
 
     try:
+
         ventana = tk.Toplevel(root)
 
+        # -------------------------------------------------
+        # QUITAR BARRA DE TÍTULO
+        # -------------------------------------------------
+
         ventana.overrideredirect(True)
-        ventana.attributes("-topmost", True)
+
+        # Mantener encima
+        ventana.attributes(
+            "-topmost",
+            True
+        )
 
         # -------------------------------------------------
         # TAMAÑO DE LA PANTALLA
@@ -159,12 +233,18 @@ def crear_ventana():
 
         x = random.randint(
             0,
-            max(0, pantalla_ancho - ANCHO)
+            max(
+                0,
+                pantalla_ancho - ANCHO
+            )
         )
 
         y = random.randint(
             0,
-            max(0, pantalla_alto - ALTO)
+            max(
+                0,
+                pantalla_alto - ALTO
+            )
         )
 
         ventana.geometry(
@@ -175,14 +255,21 @@ def crear_ventana():
         # IMAGEN
         # -------------------------------------------------
 
-        ruta_imagen = ruta_archivo(IMAGE_FILE)
+        ruta_imagen = ruta_archivo(
+            IMAGE_FILE
+        )
 
-        imagen = Image.open(ruta_imagen)
+        imagen = Image.open(
+            ruta_imagen
+        )
+
         imagen = imagen.resize(
             (ANCHO, ALTO)
         )
 
-        foto = ImageTk.PhotoImage(imagen)
+        foto = ImageTk.PhotoImage(
+            imagen
+        )
 
         etiqueta = tk.Label(
             ventana,
@@ -191,27 +278,30 @@ def crear_ventana():
         )
 
         etiqueta.image = foto
+
         etiqueta.pack(
             fill="both",
             expand=True
         )
 
-        # Guardar referencia
-        ventanas.append(ventana)
+        # -------------------------------------------------
+        # GUARDAR REFERENCIA
+        # -------------------------------------------------
+
+        ventanas.append(
+            ventana
+        )
 
         # -------------------------------------------------
-        # SI LA VENTANA SE CIERRA MANUALMENTE
+        # BLOQUEAR CIERRE
         # -------------------------------------------------
 
         def cerrar():
-            try:
-                if ventana in ventanas:
-                    ventanas.remove(ventana)
 
-                ventana.destroy()
-
-            except:
-                pass
+            # No hacer nada
+            # La ventana solo puede cerrarse
+            # mediante C + M
+            pass
 
         ventana.protocol(
             "WM_DELETE_WINDOW",
@@ -219,7 +309,11 @@ def crear_ventana():
         )
 
     except Exception as e:
-        print("Error creando ventana:", e)
+
+        print(
+            "Error creando ventana:",
+            e
+        )
 
 
 # =========================================================
@@ -233,17 +327,21 @@ def generar_ventanas():
 
     crear_ventana()
 
-    root.after(
-        INTERVALO_VENTANA,
-        generar_ventanas
-    )
+    if activo:
+
+        root.after(
+            INTERVALO_VENTANA,
+            generar_ventanas
+        )
 
 
 # =========================================================
 # AUDIO
 # =========================================================
 
-ruta_audio = ruta_archivo(AUDIO_FILE)
+ruta_audio = ruta_archivo(
+    AUDIO_FILE
+)
 
 instancia_vlc = vlc.Instance()
 
@@ -253,12 +351,15 @@ media = instancia_vlc.media_new(
     ruta_audio
 )
 
-player.set_media(media)
+player.set_media(
+    media
+)
 
 
 def iniciar_audio():
 
     try:
+
         player.play()
 
         # Esperar a que VLC inicialice
@@ -270,13 +371,19 @@ def iniciar_audio():
             estado = player.get_state()
 
             if estado == vlc.State.Ended:
+
                 player.stop()
+
                 player.play()
 
             time.sleep(0.5)
 
     except Exception as e:
-        print("Error con el audio:", e)
+
+        print(
+            "Error con el audio:",
+            e
+        )
 
 
 # =========================================================
@@ -285,13 +392,26 @@ def iniciar_audio():
 
 root = tk.Tk()
 
+# Ocultar ventana principal
 root.withdraw()
+
+
+# =========================================================
+# BLOQUEAR CIERRE DE ROOT
+# =========================================================
+
+root.protocol(
+    "WM_DELETE_WINDOW",
+    bloquear_cierre
+)
+
 
 # =========================================================
 # CONFIGURAR VOLUMEN
 # =========================================================
 
 configurar_volumen()
+
 
 # =========================================================
 # VIGILAR VOLUMEN EN SEGUNDO PLANO
@@ -304,14 +424,39 @@ hilo_volumen = threading.Thread(
 
 hilo_volumen.start()
 
+
 # =========================================================
-# HOTKEY GLOBAL
+# HOTKEY GLOBAL PARA DETENER
 # =========================================================
 
 keyboard.add_hotkey(
     "c+m",
-    detener_todo
+    detener_todo,
+    suppress=True
 )
+
+
+# =========================================================
+# BLOQUEAR ALT + F4
+# =========================================================
+
+keyboard.add_hotkey(
+    "alt+f4",
+    bloquear_cierre,
+    suppress=True
+)
+
+
+# =========================================================
+# BLOQUEAR ESC
+# =========================================================
+
+keyboard.add_hotkey(
+    "esc",
+    bloquear_cierre,
+    suppress=True
+)
+
 
 # =========================================================
 # INICIAR AUDIO
@@ -324,6 +469,7 @@ hilo_audio = threading.Thread(
 
 hilo_audio.start()
 
+
 # =========================================================
 # EMPEZAR A GENERAR VENTANAS
 # =========================================================
@@ -333,24 +479,62 @@ root.after(
     generar_ventanas
 )
 
+
 # =========================================================
 # EJECUTAR
 # =========================================================
 
 try:
+
     root.mainloop()
 
 finally:
+
+    # -----------------------------------------------------
+    # DETENER TODO
+    # -----------------------------------------------------
 
     activo = False
 
     try:
         player.stop()
+
+    except:
+        pass
+
+    # -----------------------------------------------------
+    # QUITAR HOTKEYS
+    # -----------------------------------------------------
+
+    try:
+        keyboard.remove_hotkey("c+m")
+
     except:
         pass
 
     try:
-        keyboard.remove_hotkey("c+m")
+        keyboard.remove_hotkey("alt+f4")
+
     except:
         pass
+
+    try:
+        keyboard.remove_hotkey("esc")
+
+    except:
+        pass
+
+    # -----------------------------------------------------
+    # CERRAR VENTANAS
+    # -----------------------------------------------------
+
+    for ventana in ventanas[:]:
+
+        try:
+            ventana.destroy()
+
+        except:
+            pass
+
+    ventanas.clear()
 
